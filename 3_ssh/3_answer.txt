@@ -1,0 +1,72 @@
+# 🔹 Перевірка, чи існує користувач john
+id -u john
+
+# 🔹 Створення користувача john і встановлення пароля
+sudo adduser john
+sudo passwd john
+
+# 🔹 Встановлення OpenSSH-серверу
+sudo apt update
+sudo apt install openssh-server -y
+
+# 🔹 Перевірка статусу служби SSH
+sudo systemctl status ssh
+
+# 🔹 Відкриття конфігураційного файлу SSH
+sudo nano /etc/ssh/sshd_config
+
+# 🔹 Внесення або зміна такіх рядки у файлі:
+# --- обираємо порт, забороняємо root, забороняємо паролі, дозволяємо тільки john ---
+Port 2222
+PermitRootLogin no
+PasswordAuthentication no
+AllowUsers john (sudo nano /etc/ssh/sshd_config.d/10_allowUser.conf)
+
+# 🔹 Повністю відключаємо socket-based запуск і переходимо на systemd
+sudo systemctl disable ssh.socket
+sudo systemctl stop ssh.socket
+
+# 🔹 Увімкнення і перезапуск служби sshd
+sudo systemctl enable ssh
+sudo systemctl restart ssh
+
+# 🔹 Перевірити порт
+sudo netstat -tulnp
+
+# 🔹 Генерація SSH-ключа (від імені поточного користувача, наприклад svitlana)
+ssh-keygen -t rsa -b 4096 -f ~/john_id_rsa
+
+# 🔹 Додаємо публічний ключ до користувача john
+sudo mkdir -p /home/john/.ssh
+sudo cp ~/john_id_rsa.pub /home/john/.ssh/authorized_keys
+sudo chown -R john:john /home/john/.ssh
+sudo chmod 700 /home/john/.ssh
+sudo chmod 600 /home/john/.ssh/authorized_keys
+
+# 🔹 Тест SSH-підключення по ключу до john (успішне)
+ssh -i ~/john_id_rsa -p 2222 john@localhost
+
+# 🔹 Тест без ключа (має бути відмова, якщо PasswordAuthentication no)
+ssh -p 2222 john@localhost
+
+# 🔹 Тест підключення до svitlana (має бути відмова, якщо не в AllowUsers)
+ssh -p 2222 svitlana@localhost
+
+# 🔹 Якщо хочемо дозволити вхід і для svitlana по ключу:
+# 1. Додаємо до AllowUsers: AllowUsers john svitlana
+# 2. Згенеруємо ключ для svitlana
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/svitlana_id_rsa
+
+# 3. Додаємо публічний ключ до ~/.ssh/authorized_keys
+cat ~/.ssh/svitlana_id_rsa.pub >> ~/.ssh/authorized_keys
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+
+# 🔹 Тест входу до svitlana з ключем (успішне підключення)
+ssh -i ~/.ssh/svitlana_id_rsa -p 2222 svitlana@localhost
+
+# 🔹 Якщо не додано до AllowUsers — буде помилка:
+# User svitlana from 127.0.0.1 not allowed because not listed in AllowUsers
+
+# 🔹 Перевірка логів аутентифікації:
+sudo tail -n 50 /var/log/auth.log
